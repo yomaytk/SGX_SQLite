@@ -49,18 +49,17 @@ void ecall_closedb(){
     ocall_println_string("Enclave: Closed database connection");
 }
 
-char encrypt_data[BUFSIZ] = "Data to encrypt";
 char aad_mac_text[BUFSIZ] = "aad mac text";
 
-uint32_t get_sealed_data_size()
+uint32_t get_sealed_data_size(uint32_t fsize)
 {
-    uint32_t size = sgx_calc_sealed_data_size((uint32_t)strlen(aad_mac_text), (uint32_t)strlen(encrypt_data));
+    uint32_t size = sgx_calc_sealed_data_size((uint32_t)strlen(aad_mac_text), fsize);
     return size;
 }
 
-sgx_status_t seal_data(uint8_t* sealed_blob, uint32_t data_size)
+sgx_status_t seal_data(uint8_t* sealed_blob_buf, uint32_t data_size, uint8_t *p_data_to_be_encrypted, uint32_t fsize)
 {
-    uint32_t sealed_data_size = sgx_calc_sealed_data_size((uint32_t)strlen(aad_mac_text), (uint32_t)strlen(encrypt_data));
+    uint32_t sealed_data_size = sgx_calc_sealed_data_size((uint32_t)strlen(aad_mac_text), fsize);
     if (sealed_data_size == UINT32_MAX)
         return SGX_ERROR_UNEXPECTED;
     if (sealed_data_size > data_size)
@@ -69,11 +68,12 @@ sgx_status_t seal_data(uint8_t* sealed_blob, uint32_t data_size)
     uint8_t *temp_sealed_buf = (uint8_t *)malloc(sealed_data_size);
     if(temp_sealed_buf == NULL)
         return SGX_ERROR_OUT_OF_MEMORY;
-    sgx_status_t  err = sgx_seal_data((uint32_t)strlen(aad_mac_text), (const uint8_t *)aad_mac_text, (uint32_t)strlen(encrypt_data), (uint8_t *)encrypt_data, sealed_data_size, (sgx_sealed_data_t *)temp_sealed_buf);
+    sgx_status_t  err = sgx_seal_data((uint32_t)strlen(aad_mac_text), (const uint8_t *)aad_mac_text, fsize, p_data_to_be_encrypted, \
+        sealed_data_size, (sgx_sealed_data_t *)temp_sealed_buf);
     if (err == SGX_SUCCESS)
     {
         // Copy the sealed data to outside buffer
-        memcpy(sealed_blob, temp_sealed_buf, sealed_data_size);
+        memcpy(sealed_blob_buf, temp_sealed_buf, sealed_data_size);
     }
 
     free(temp_sealed_buf);
@@ -107,10 +107,10 @@ sgx_status_t unseal_data(const uint8_t *sealed_blob, size_t data_size)
         return ret;
     }
 
-    if (memcmp(de_mac_text, aad_mac_text, strlen(aad_mac_text)) || memcmp(decrypt_data, encrypt_data, strlen(encrypt_data)))
-    {
-        ret = SGX_ERROR_UNEXPECTED;
-    }
+    // if (memcmp(de_mac_text, aad_mac_text, strlen(aad_mac_text)) || memcmp(decrypt_data, encrypt_data, strlen(encrypt_data)))
+    // {
+    //     ret = SGX_ERROR_UNEXPECTED;
+    // }
     ocall_text_print(decrypt_data, decrypt_data_len);
 
     free(de_mac_text);
